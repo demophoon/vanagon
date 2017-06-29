@@ -4,6 +4,7 @@ require 'vanagon/platform'
 require 'vanagon/project/dsl'
 require 'vanagon/utilities'
 require 'ostruct'
+require 'time'
 
 class Vanagon
   class Project
@@ -475,6 +476,39 @@ class Vanagon
     # @param workdir [String] workdir to put the packaging files into
     def generate_packaging_artifacts(workdir)
       @platform.generate_packaging_artifacts(workdir, @name, binding)
+    end
+
+    # Generate a json file which lists all of the dependant components of the project
+    #
+    # @param workdir [String] Workdir to put dependencies json file.
+    def generate_dependencies_info
+      project_components = @components.map do |component|
+        components_hash = component.options
+        [:version, :url].each do |key|
+          if val = component.send(key)
+            components_hash[key] = val
+          end
+        end
+        [
+          component.name,
+          components_hash,
+        ]
+      end.to_h
+    end
+
+    def generate_manifest_json
+      build_time = Time.now
+      manifest = {
+        "packaging_type" => {
+          "vanagon" => Gem.loaded_specs["vanagon"].version.to_s,
+        },
+        "git_sha" => @version,
+        "components" => generate_dependencies_info,
+        "build_time" => build_time.rfc2822,
+      }
+      File.open(File.join('ext', 'build_metadata.json'), 'w') do |f|
+        f.write(manifest.to_json)
+      end
     end
   end
 end
